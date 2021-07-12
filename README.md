@@ -39,4 +39,4 @@ To get the Controls and properties use Print Current Window Page Object Properti
 To find exact element property/control, analyse the hierarchy and find from printed controls identifiers.
 
 ## Keyword documentation
-For the keyword documentation [go here](https://HimaAne.github.io/PyWindowsGuiLibrary.html).
+For the keyword documentation [go here](docs/PyWindowsGuiLibrary.html).
