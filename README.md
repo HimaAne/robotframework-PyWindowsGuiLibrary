@@ -11,6 +11,14 @@ To install, simply use pip:
 pip install robotframework-PyWindowGuiLibrary
 ```
 
+To upgrade, simply use pip:
+
+```dos
+pip install -U robotframework-PyWindowGuiLibrary
+
+pip install robotframework-PyWindowGuiLibrary --upgrade
+```
+
 Dependencies are automatically installed.
 
 ## Importing in Robot Framework
