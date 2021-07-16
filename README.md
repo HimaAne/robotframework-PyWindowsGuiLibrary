@@ -8,15 +8,15 @@ PyWindowGuiLibrary can be found on PyPI: https://pypi.org/project/robotframework
 To install, simply use pip:
 
 ```dos
-pip install robotframework-PyWindowGuiLibrary
+pip install robotframework-PyWindowsGuiLibrary
 ```
 
 To upgrade, simply use pip:
 
 ```dos
-pip install -U robotframework-PyWindowGuiLibrary
+pip install -U robotframework-PyWindowsGuiLibrary
 
-pip install robotframework-PyWindowGuiLibrary --upgrade
+pip install robotframework-PyWindowsGuiLibrary --upgrade
 ```
 
 Dependencies are automatically installed.
