@@ -12,7 +12,7 @@ setup(
     description="A Robot Framework Library for automating the WINDOWS BASED GUI applications",
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url="https://github.com/HimaAne/robotframework-PyWindowsGuiLibrary/archive/refs/tags/1.4.tar.gz",
+    url="https://github.com/HimaAne/robotframework-PyWindowsGuiLibrary/archive/refs/tags/2.0.tar.gz",
     packages=find_packages(),
     classifiers=(
         "Programming Language :: Python :: 3.6",
