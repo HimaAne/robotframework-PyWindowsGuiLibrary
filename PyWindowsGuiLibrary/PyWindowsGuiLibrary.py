@@ -1,4 +1,5 @@
 from robot.libraries.BuiltIn import BuiltIn
+from robot.api.deco import keyword
 from robot.api import logger
 import pywinauto
 import pywinauto.mouse
@@ -200,10 +201,10 @@ class PyWindowsGuiLibrary:
             ----Clear Edit Field----Edit1
 
     """
-    __version__ = '1.0'
+    __version__ = '1.4'
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'
 
-    def __init__(self, screenshots_on_error=True):
+    def __init__(self, screenshots_on_error=True, backend="uia"):
         """
         Sets default variables for the library.
 
@@ -213,6 +214,34 @@ class PyWindowsGuiLibrary:
 
         """
         self.take_screenshots = screenshots_on_error
+        self.backend = backend.lower()
+        self.dlg = None
+        self.APPInstance = None
+
+    def set_backend_win32(self):
+        """
+        This sets backend variable as win32 globally, for execution purpose.
+
+        *Example*:
+        | *Arguments*        | *Documentation*                 |
+        | Set Backend Win32  | #sets backend process as win32. |
+
+        """
+
+        self.backend = 'win32'
+
+    def set_backend_uia(self):
+
+        """
+        This sets backend variable as uia globally, for execution purpose.
+
+        *Example*:
+        | *Arguments*       | *Documentation*                 |
+        | Set Backend Uia  | #sets backend process as uia.    |
+
+        """
+
+        self.backend = 'uia'
 
     def disable_screenshots_on_failure(self):
         """
@@ -243,29 +272,28 @@ class PyWindowsGuiLibrary:
         By default applications will open with "uia" backend process. This keyword supports both uia and win32 backend
         process.
 
-        If Required to open the Application in win32 than need to pass, backend process as win32.
+        If Required to open the Application in win32 than, need to pass backend process as win32.
 
         *Example*:
         | *Keyword*          | *Attributes*               |       |                                               |
         | Launch Application | C:\\Program Files\\app.exe |       | # By default application launches with uia.   |
-        | Launch Application | C:\\Program Files\\app.exe | win32 | # By default application launches with win32. |
+        | Launch Application | C:\\Program Files\\app.exe | win32 | # Application launches with win32. |
 
         """
         logger.info("Launching the application from the path " + path)
         try:
-            global APPInstance
-            APPInstance = pywinauto.application.Application(backend=backend).start(path, timeout=60)
-            return APPInstance
+            self.APPInstance = pywinauto.application.Application(backend=backend).start(path, timeout=60)
+            return self.APPInstance
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = "Unable to start/Launch Given Application From the path " + ":::: " + "because " + str(h1)
+            mess = "Unable to start/Launch given Application from the path " + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
     def _window_handle_(self, window_property, index):
         global w_handle
         if 'title:' in window_property:
             win_prop = window_property.replace('title:', '')
-            w_handle = pywinauto.findwindows.find_windows(title=win_prop, ctrl_index=None, top_level_only=True,
+            w_handle = pywinauto.findwindows.find_windows(title_re=win_prop, ctrl_index=None, top_level_only=True,
                                                           visible_only=True)[index]
         elif 'class_name:' in window_property:
             win_prop = window_property.replace('class_name:', '')
@@ -274,15 +302,18 @@ class PyWindowsGuiLibrary:
 
     def focus_application_window(self, window_property, backend="uia", index=0):
         """
-        This keyword Focus the Application to the Front End.
+        Focuses the Application to the Front End.
 
-        And return the Connected Window Handle Instance :i.e dlg.
+        And return the Connected Window Handle Instance :i.e dlg. This sets as global and the same used across
+        further implementation.
 
         See the `Window property` section for details about the window.
 
-        This sets as global and the same used across further implementation.
+        Use Backend argument as uia/win32 as per application support.
 
-        Use this keyword anytime to shift the control of execution between backend process win32 and uia.
+        This connects to the application.
+
+        *Note:* Use this keyword anytime to shift the control of execution between backend process win32 and uia.
 
         *Example*:
         | *Keyword*                | *Attributes*             | *backend process* |   | |
@@ -291,20 +322,62 @@ class PyWindowsGuiLibrary:
         | Focus Application Window | title:ABC                | win32 | 1 | # Would focus application with backend process win32 and index 1. |
 
         """
-        logger.info("'Focusing the application window matches to " + window_property+"'.")
+        logger.info("'Focusing the application window matches to " + window_property + "'.")
         try:
-            global dlg
-            global APPInstance
-            APPInstance = pywinauto.application.Application(backend=backend)
+            self.APPInstance = pywinauto.application.Application(backend=backend)
             self._window_handle_(window_property, index)
-            APPInstance.connect(handle=w_handle)
-            dlg = APPInstance.window(handle=w_handle)
-            dlg.set_focus()
-            return dlg
+            self.APPInstance.connect(handle=w_handle)
+            self.dlg = self.APPInstance.window(handle=w_handle)
+            self.dlg.set_focus()
+            if backend == "uia":
+                self.set_backend_uia()
+            else:
+                self.set_backend_win32()
+            return self.dlg
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = "Unable to Focus Application given by " + str(window_property) + " property,with " + str(index) \
+            mess = "Unable to focus Application given by " + str(window_property) + " property,with " + str(index) \
                    + " index and " + str(backend) + " backend process " + ":::: " + "because " + str(h1)
+            raise Exception(mess)
+
+    def set_focus_to_element(self, element_property):
+        """
+        Sets focus to given element on current active window.
+
+        See the `Element property` section for details about the locator.
+
+        *Example*:
+        | *Keyword*            | *Attributes* |                                        |
+        | Set Focus To Element | element_property | # Would focuses to window element. |
+
+        """
+        try:
+            if self.dlg and self.backend is not None:
+                self.dlg[element_property].set_focus()
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = "Failed to focus element in the Application " + ":::: " + "because " + str(h1)
+            raise Exception(mess)
+
+    def get_element_control_type(self, element_property):
+        """
+        Return the given element control type.
+
+        See the `Element property` section for details about the locator.
+
+        Control types are : edit, combobox, radio, button ect...
+
+        *Example*:
+        | *Variable*       | *Keyword* |  *Attributes*      |    |
+        | ${ControlType}=  | Get Element Control Type | element_property | # Would return given element control type. |
+
+        """
+        try:
+            if self.dlg and self.backend is not None:
+                return self.dlg[element_property].friendly_class_name()
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = "Failed to focus element in the Application " + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
     def maximize_application_window(self):
@@ -316,9 +389,10 @@ class PyWindowsGuiLibrary:
         | Maximize Application Window | #would maximize application window. |
 
         """
-        logger.info("Maximizing the window")
+        logger.info("Maximizing the current application window")
         try:
-            dlg.maximize()
+            if self.backend and self.dlg is not None:
+                self.dlg.maximize()
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Failed to maximize the Application " + ":::: " + "because " + str(h1)
@@ -333,9 +407,10 @@ class PyWindowsGuiLibrary:
         | Minimize Application Window | #would minimize application window. |
 
         """
-        logger.info("minimizing the window.")
+        logger.info("Minimizing the current application window.")
         try:
-            dlg.minimize()
+            if self.dlg and self.backend is not None:
+                self.dlg.minimize()
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Failed to minimize the Application " + ":::: " + "because " + str(h1)
@@ -345,14 +420,16 @@ class PyWindowsGuiLibrary:
         """
         Returns control identifiers for current ``window``.
 
+        Recommended to use UIA controls to get fetch more properties from backend.
+
         *Example*:
-        | *Variable*                   | *Keyword*                                  |
-        | ${Complete window controls}= | #would return complete controls of window. |
+        | *Variable*                   | *Keyword*                                  |   |
+        | ${Complete window controls}= | print_current_window_page_object_properties | #would return complete controls of window. |
 
         """
-        logger.info("'Returns Hole window Controls From Current Active Window" + "'.")
+        logger.info("'Returns Complete window controls from Current connected Window" + "'.")
         try:
-            dlg.print_control_identifiers()
+            self.dlg.print_control_identifiers()
             printed_controls = sys.stdout.getvalue()
             return printed_controls
         except Exception as h1:
@@ -371,15 +448,34 @@ class PyWindowsGuiLibrary:
         | ${Specific Element controls}= | Print current window page object properties | element_property | #would return specific element controls from window. |
 
         """
-        logger.info("Returns Specific element Controls From Given Object Property" + "'" + "``" + element_property
-                    + "``" + "'.")
+        logger.info("Returns Specific element controls from given ``element Property`` " + "``" + element_property
+                    + "`` " + "'.")
         try:
-            dlg[element_property].print_ctrl_ids()
+            self.dlg[element_property].print_ctrl_ids()
             printed_controls = sys.stdout.getvalue()
             return printed_controls
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to print and return Object " + element_property + " properties" + ":::: " + "because " \
+                   + str(h1)
+            raise Exception(mess)
+
+    def get_window_text(self):
+        """
+        Returns the text of the currently selected window.
+
+         *Example*:
+        | *Variable*      |  *Keyword*       |                             |
+        | ${Window Text}= | Get Window Text  | #would returns window text. |
+
+        """
+        logger.info("Retrieving current window text.")
+        try:
+            if self.backend is not None:
+                return self.dlg.window_text()
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = "Unable to get current window text in current active Application " + " :::: " + "because " \
                    + str(h1)
             raise Exception(mess)
 
@@ -394,9 +490,10 @@ class PyWindowsGuiLibrary:
         | ${Text}=   | Get Text  | element property | #would return text of specified element from window. |
 
         """
-        logger.info("Retrieving element text From Given Object Property" + "'" + element_property + "'.")
+        logger.info("Retrieving element text from given Object Property" + "'" + element_property + "'.")
         try:
-            return dlg[element_property].window_text()
+            if self.dlg and self.backend is not None:
+                return self.dlg[element_property].window_text()
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to Get text in Application from given by " + element_property + " :::: " + "because " \
@@ -414,9 +511,10 @@ class PyWindowsGuiLibrary:
         | Set Text  | element property | PQRS | #would set text to specified element in window. |
 
         """
-        logger.info("Typing text " + text + " into text field identified by " + "'" + element_property + "'.")
+        logger.info("Setting text " + text + " into text field identified by " + "'" + element_property + "'.")
         try:
-            dlg[element_property].set_text(text)
+            if self.dlg and self.backend is not None:
+                self.dlg[element_property].set_text(text)           # set_edit_text(text)
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to Type the given " + text + " into the text field identified by " + element_property + "." \
@@ -425,18 +523,19 @@ class PyWindowsGuiLibrary:
 
     def click_on_element(self, element_property):
         """
-        Click the element identified by ``element_property``.
+        Clicks at the element identified by ``element_property``.
 
         See the `Element property` section for details about the locator.
 
         *Example*:
-        | *Keyword*        | *Attributes*     |                                                      |
-        | Click On Element | element property | # Would click element with by Double_Click() method. |
+        | *Keyword*        | *Attributes*     |                                               |
+        | Click On Element | element property | # Would click element with by Click() method. |
 
         """
         logger.info("Clicking element Property " + "'" + element_property + "'.")
         try:
-            dlg[element_property].click()
+            if self.backend is not None:
+                self.dlg[element_property].click()
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to click element " + element_property + " in Application " + ":::: " + "because " + str(h1)
@@ -444,7 +543,7 @@ class PyWindowsGuiLibrary:
 
     def double_click_on_element(self, element_property):
         """
-        Click the element identified by ``element_property``.
+        Double Click at the element identified by ``element_property``.
 
         See the `Element property` section for details about the locator.
 
@@ -453,50 +552,147 @@ class PyWindowsGuiLibrary:
         | Double Click On Element | element property | # Would click element with by Double_Click() method. |
 
         """
-        logger.info("Double Clicking element Property " + "'" + element_property + "'.")
+        logger.info("Double clicking element property " + "`" + element_property + "`.")
         try:
-            dlg[element_property].double_click()
+            if self.backend == "win32":
+                self.dlg[element_property].double_click()
+            elif self.backend == "uia":
+                logger.info("This keyword is no longer support for uia controls")
+                raise AssertionError
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to click object " + element_property + " in Application " + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
+    def right_click_on_element(self, element_property):
+        """
+        Right Click at the element identified by ``element_property``.
+
+        See the `Element property` section for details about the locator.
+
+        *Example*:
+        | *Keyword*               | *Attributes*     |                                                      |
+        | Right Click On Element | element property  | # Would click element with by Right_Click() method.  |
+
+        """
+        logger.info("Right clicking element property " + "'" + element_property + "'.")
+        try:
+            if self.backend == "win32":
+                self.dlg[element_property].right_click()
+            elif self.backend == "uia":
+                log = "This keyword is no longer support for uia controls, Use other Click related keywords"
+                logger.info(log)
+                raise AssertionError
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = "Unable to click object " + element_property + " in Application " + ":::: " + "because " + \
+                   log + str(h1)
+            raise Exception(mess)
+
+    def action_right_click_on_element(self, element_property):
+        """
+        Realistic Right Click at the element identified by ``element_property``.
+
+        This is different from click method in that it requires the control to be visible on the screen but performs
+        a more realistic ‘click’ simulation.
+
+        This method is also vulnerable if the mouse is moved by the user as that could easily move the mouse off the
+        control before the click_input has finished.
+
+        See the `Element property` section for details about the locator.
+
+        *Example*:
+        | *Keyword*                     | *Attributes*     |                                                      |
+        | Action Right Click On Element | element property | # Would click element with by right_Click_input() method. |
+
+        """
+        logger.info("Action Right Clicking element Property " + "'" + element_property + "'.")
+        try:
+            if self.backend == "win32":
+                self.dlg[element_property].right_click_input()
+            elif self.backend == "uia":
+                log = "This keyword is no longer support for uia controls, Use other Click related keywords"
+                logger.info(log)
+                raise AssertionError
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = "Unable to click object " + element_property + " in Application " + ":::: " + "because " + log + \
+                   str(h1)
+            raise Exception(mess)
+
     def action_click(self, element_property):
         """
-        Click the element identified by ``element_property``.
+        Clicks at the element identified by ``element_property``.
 
         Use Element property or child window to perform the clicking operation.
+
+        This is different from click method in that it requires the control to be visible on the screen but performs
+        a more realistic ‘click’ simulation.
+
+        This method is also vulnerable if the mouse is moved by the user as that could easily move the mouse off the
+        control before the click_input has finished.
 
         See the `Element property` and `Child window` section for details about the locator.
 
         *Example*:
-        | *Keyword*        | *Attributes*     |                                                     |
+        | *Keyword*        | *Attributes*     |                                                 |
         | Action Click | element property | # Would click element with by Click_input() method. |
         | Action Click | child window     | # Would click element with by Click_input() method. |
 
         """
-        logger.info("Clicking element Property " + "'" + element_property + "'.")
+        logger.info("Realistic clicking element property " + "'" + element_property + "'.")
         try:
-            dlg[element_property].click_input()
+            if self.dlg and self.backend is not None:
+                self.dlg[element_property].click_input()
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = " Unable to click object " + element_property + " in Application " + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
+    def action_double_click(self, element_property):
+        """
+        Double Click at the element identified by ``element_property``.
+
+        Use Element property or child window to perform the clicking operation.
+
+        This is different from click method in that it requires the control to be visible on the screen but performs
+        a more realistic ‘click’ simulation.
+
+        This method is also vulnerable if the mouse is moved by the user as that could easily move the mouse off the
+        control before the click_input has finished.
+
+        See the `Element property` section for details about the locator.
+
+        *Example*:
+        | *Keyword*           | *Attributes*     |                                                            |
+        | Action Double Click | element property | # Would click element with by Double_Click_input() method. |
+        | Action Double Click | child window     | # Would click element with by Double_Click_input() method. |
+
+        """
+        logger.info("Realistic double clicking element Property " + "'" + element_property + "'.")
+        try:
+            if self.dlg and self.backend is not None:
+                self.dlg[element_property].double_click_input()
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = " Unable to perform realistic double click on object " + element_property + " in Application " \
+                   + ":::: " + "because " + str(h1)
+            raise Exception(mess)
+
     def mouseover_click(self, x_coordinates='0', y_coordinates='0', button='left'):
         """
-        Click at the specified X and Y coordinates.
+        Clicks at the specified X and Y coordinates.
 
         By Default this performs left mouse click
 
         *Example*:
-        | *Keyword*       | *Attributes*  |               |       |                                                    |
-        | Mouseover Click |      |      |     | #By default perform left click on (0,0)    coordinates. |
-        | Mouseover Click | x_coordinates | y_coordinates | right | #Would perform right click on given coordinates.   |
-        | Mouseover Click | x_coordinates | y_coordinates | left | #Would perform right click on given coordinates.   |
+        | *Keyword*       | *Attributes*  |               |       |                                                  |
+        | Mouseover Click |      |      |                    | #By default perform left click on (0,0)  coordinates. |
+        | Mouseover Click | x_coordinates | y_coordinates | right | #Would perform right click on given coordinates. |
+        | Mouseover Click | x_coordinates | y_coordinates | left | #Would perform left click on given coordinates.   |
 
         """
-        logger.info(button + " Mouse Button clicking at X and Y coordinates i.e " + "(" + str(x_coordinates) + "," +
+        logger.info(button + " Mouse button clicking at X and Y coordinates i.e " + "(" + str(x_coordinates) + "," +
                     str(y_coordinates) + ")")
         try:
             x_coordinates = int(x_coordinates)
@@ -504,8 +700,8 @@ class PyWindowsGuiLibrary:
             pywinauto.mouse.click(button=button, coords=(x_coordinates, y_coordinates))
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = " Unable to click object by " + str(x_coordinates), str(y_coordinates) + " in Application " + ":::: " +\
-                   "because " + str(h1)
+            mess = "Unable to click object by " + str(x_coordinates), str(y_coordinates) + " in Application " + \
+                   ":::: " + "because " + str(h1)
             raise Exception(mess)
 
     def mouseover_double_click(self, x_coordinates='0', y_coordinates='0', button='left'):
@@ -529,8 +725,8 @@ class PyWindowsGuiLibrary:
             pywinauto.mouse.double_click(button=button, coords=(x_coordinates, y_coordinates))
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = " Unable to double click object by " + str(x_coordinates), str(y_coordinates) + " in Application " + \
-                   ":::: " + "because " + str(h1)
+            mess = " Unable to double click object by " + str(x_coordinates), str(y_coordinates) + " in Application " \
+                   + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
     def mouseover_move(self, x_coordinates='0', y_coordinates='0'):
@@ -550,8 +746,8 @@ class PyWindowsGuiLibrary:
             pywinauto.mouse.move(coords=(x_coordinates, y_coordinates))
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = " Unable move mouse to coordinates " + str(x_coordinates), str(y_coordinates) + " in Application " + \
-                   ":::: " + "because " + str(h1)
+            mess = " Unable move mouse to coordinates " + str(x_coordinates), str(y_coordinates) + " in Application "\
+                   + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
     def mouseover_press(self, x_coordinates='0', y_coordinates='0', button='left'):
@@ -561,7 +757,7 @@ class PyWindowsGuiLibrary:
         *Example*:
         | *Keyword*       | *Attributes*  |               |                                                 |
         | Mouseover Press |               |               | #By default perform mouse press on (0,0)) coordinates. |
-        | Mouseover Press | x_coordinates | y_coordinates | #Would perform mouse move to given coordinates. |
+        | Mouseover Press | x_coordinates | y_coordinates | #Would perform mouse press to given coordinates. |
         """
         logger.info(" Moving mouse to given X and Y coordinates and press " + button + "button i.e: clicking at " +
                     "(" + str(x_coordinates) + "," + str(y_coordinates) + ")")
@@ -618,7 +814,7 @@ class PyWindowsGuiLibrary:
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = " Unable Do mouse wheel to coordinates " + str(x_coordinates, y_coordinates) + " to perform " + \
-                   wheel_dist + " mouse wheel scroll in Application " + ":::: " + "because " + str(h1)
+                   str(wheel_dist) + " mouse wheel scroll in Application " + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
     def input_text(self, element_property, text):
@@ -626,6 +822,8 @@ class PyWindowsGuiLibrary:
         Types the given ``text`` into the text field identified by ``element_property``.
 
         Type keys to the element using keyboard.send_keys.
+
+        It parses modifiers Shift(+), Control(^), Menu(%) and Sequences like “{TAB}”, “{ENTER}”.
 
         See the `Element property` section for details about the locator.
 
@@ -635,13 +833,14 @@ class PyWindowsGuiLibrary:
         | Input Text  | element property | {TAB}{SPACE}{TAB}  |
 
         """
-        logger.info("'Typing text " + text + " into text field identified by " + element_property+"'.")
+        logger.info("Typing text " + text + " into text field identified by " + element_property + ".")
         try:
-            dlg[element_property].type_keys(text)
+            self.dlg[element_property].type_keys(text, pause=0.05, with_spaces=True, with_tabs=True,
+                                                 with_newlines=True, turn_off_numlock=True)
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = "Unable Types the given" + text + "into the text field identified by " + element_property + "." \
-                   + ":::: " + "because " + str(h1)
+            mess = "Unable to types the given" + text + "into the text field identified by " + element_property + "." \
+                   + " :::: " + "because " + str(h1)
             raise Exception(mess)
 
     def send_keystrokes(self, text):
@@ -657,18 +856,22 @@ class PyWindowsGuiLibrary:
         """
         logger.info("sending keystrokes to the control in an inactive window.")
         try:
-            dlg.send(text)
+            if self.backend == 'win32':
+                self.dlg.send_keystrokes(text)
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = "Unable To Silently send keystrokes to the control in an inactive window" + "." + ":::: " \
+            mess = "Unable to silently send keystrokes to the control in an inactive window. " + " :::: " \
                    + "because " + str(h1)
             raise Exception(mess)
 
     def press_keys(self, keys):
         """
-        This keyword Enter The Keys On the ``window``.
+        This keyword Enters/performs the Keys actions On the ``window``.
 
-        Sends keys directly on screen into edit fields/ window.
+        Sends keys directly on screen into edit fields/ window by pyautogui.
+
+        The following are the valid strings to pass to the press() function:
+        https://pyautogui.readthedocs.io/en/latest/keyboard.html?highlight=press#keyboard-keys
 
         *Example*:
         | *Keyword*   | *Attributes*      |
@@ -677,10 +880,11 @@ class PyWindowsGuiLibrary:
         """
         logger.info("'Pressing the given " + keys + " key(s) on Active Window"+"'.")
         try:
-            dlg.type_keys(keys)
+            self.dlg.set_focus()
+            pyautogui.press(keys)
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = "Unable To Press the given" + keys + "on Window." + ":::: " + "because " + str(h1)
+            mess = "Unable to press the given" + keys + "on Window." + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
     def clear_edit_field(self, element_property):
@@ -694,29 +898,27 @@ class PyWindowsGuiLibrary:
         | Clear Edit Field  | Edit              |
 
         """
-        logger.info("Unable Clear the given EditFields" + element_property + "on Active Window.")
+        logger.info("clearing the given edit fields " + element_property + " on Active Window.")
         try:
-            dlg[element_property].set_text(u'')
+            self.dlg[element_property].set_text(u'')
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = "Unable To Clear the given Edit Fields" + element_property + "on Active Window." + ":::: " + str(h1)
+            mess = "Unable to clear the given edit field `" + element_property + "` on Active Window." + " :::: "\
+                   + str(h1)
             raise Exception(mess)
 
-    def __checkbox_status__(self, element_property, back):
+    def __checkbox_status__(self, element_property):
         try:
-            global cb_status
-            if back == "uia":
-                cb_status = dlg[element_property].get_toggle_state()
-            else:
-                print("Hima0")
-                cb_status = dlg.CheckBox.is_checked()
-            print(cb_status)
+            if self.backend == "uia" and self.dlg is not None:
+                cb_status = self.dlg[element_property].get_toggle_state()
+            elif self.backend == "win32" and self.dlg is not None:
+                cb_status = self.dlg.CheckBox.is_checked()
             return str(cb_status)
         except Exception as h1:
             mess = "couldn't find the check box status " + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
-    def select_checkbox(self, element_property, backend="uia"):
+    def select_checkbox(self, element_property):
         """
         Selects(✔) the checkbox identified by ``element_property``.
 
@@ -728,26 +930,23 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            cb_status = self.__checkbox_status__(element_property, backend)
+            cb_status = self.__checkbox_status__(element_property)
             logger.info("Enabling the checkbox")
-            logger.info("checkbox is in unchecked state")
+            logger.info("Checkbox is in unchecked state")
             logger.info("checking (✔) unchecked checkbox")
-            if cb_status == str(0):
-                dlg[element_property].click_input()
-                logger.info("enabled(✔) unchecked checkbox successfully " + "with backend process " + backend)
-            if cb_status == str(False):
-                dlg.CheckBox.check()
-                logger.info("enabled(✔) unchecked checkbox successfully " + "with backend process " + backend)
-            elif cb_status == str(True) or str(1):
-                logger.info("checkbox is already in checked state (✔)")
-            # if cb_status == str(None) or str(2):
-            #     logger.info("Not able to retrieve the checkbox status, un supported")
+            if cb_status == str(0) or cb_status == str(False):
+                self.dlg[element_property].click_input()
+                logger.info("Changed checkbox state from unchecked to checked(✔) successfully. ")
+            elif cb_status == str(True) or cb_status == str(1):
+                logger.info("Checkbox is already in enabled/checked state (✔)")
+            else:
+                logger.info("Not able to retrieve the checkbox status, un supported & checkbox status is " + cb_status)
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = "failed to check (✔) the check box " + ":::: " + "because " + str(h1)
+            mess = "Failed to check (✔) the check box " + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
-    def unselect_checkbox(self, element_property, backend="uia"):
+    def unselect_checkbox(self, element_property):
         """
         Removes the selection of checkbox identified by ``element_property``.
 
@@ -759,32 +958,28 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            cb_status = self.__checkbox_status__(element_property, backend)
+            cb_status = self.__checkbox_status__(element_property)
             logger.info("Disabling the checkbox")
             logger.info("Checkbox is in checked (✔) state")
             logger.info("Unchecking (✔-->✖) checked checkbox")
-            if cb_status == str(1):
-                dlg[element_property].click_input()
-                logger.info("Disabled the existing checked(✔) checkbox successfully "
-                            + "with backend process " + backend)
-            if cb_status == str(True):
-                dlg.CheckBox.uncheck()
-                logger.info("Disabled the existing checked(✔) checkbox successfully " + "with backend process"
-                            + backend)
-            elif cb_status == str(False) or str(0):
-                logger.info("checkbox is already in disabled state (✖)")
-            # if cb_status == str(None) or str(2):
-            #     logger.info("Not able to retrieve the checkbox status, un supported")
+            if cb_status == str(1) or cb_status == str(True):
+                self.dlg[element_property].click_input()
+                logger.info("Changed checkbox state from checked(✔) to unchecked successfully. ")
+            elif cb_status == str(False) or cb_status == str(0):
+                logger.info("Checkbox is already in disabled/Unchecked state (✖)")
+            else:
+                logger.info("Not able to retrieve the checkbox status, un supported & checkbox status is " + cb_status)
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = "failed to uncheck the check box " + ":::: " + "because " + str(h1)
+            mess = "Failed to uncheck the check box " + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
     def __screenshot_on_error__(self, screenshot="Application", screenshot_format="PNG", screenshot_directory=None,
-                             width="800px"):
+                                width="800px"):
         if self.take_screenshots is True:
             self.capture_app_screenshot(screenshot, screenshot_format, screenshot_directory, width)
 
+    @keyword
     def capture_app_screenshot(self, screenshot="Application", screenshot_format="PNG", screenshot_directory=None,
                                width="800px"):
         """
@@ -847,7 +1042,7 @@ class PyWindowsGuiLibrary:
                 ph = pyautogui.screenshot()
                 ph.save(file_path)
             except Exception as h1:
-                mess = "Unable to take application screenshot " + ":::: " + "because " + str(h1)
+                mess = "Unable to take application screenshot at " + str(index) + ":::: " + "because " + str(h1)
                 raise Exception(mess)
 
     def get_line(self, element_property, window_property, pattern='(.*)(L0, T0, R0, B0)(.*)', index=0, backend="uia"):
@@ -876,12 +1071,16 @@ class PyWindowsGuiLibrary:
         """
         try:
             global result
+            #element_property = element_property=None
             app = pywinauto.application.Application(backend=backend)
             self._window_handle_(window_property, index)
             app.connect(handle=w_handle)
             window = app.window(handle=w_handle)
             window.set_focus()
-            window[element_property].print_ctrl_ids()
+            if element_property is not None:
+                window[element_property].print_ctrl_ids()
+            elif element_property is None:
+                window.print_ctrl_ids()
             printed_controls = sys.stdout.getvalue()
             sl = printed_controls.splitlines()
             for line in sl:
@@ -943,7 +1142,7 @@ class PyWindowsGuiLibrary:
             window.close_alt_f4()
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = "Failed to close APP application" + ":::: " + "because " + str(h1)
+            mess = "Failed to close application window" + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
     def __returnElementStateOnWindow__(self, element_property, window_property, index, msg=None):
@@ -951,9 +1150,9 @@ class PyWindowsGuiLibrary:
             global status
             self._window_handle_(window_property, index)
             if checkup_state == 'visible':
-                status = dlg[element_property].is_visible()
+                status = self.dlg[element_property].is_visible()
             if checkup_state == 'enable':
-                status = dlg[element_property].is_enabled()
+                status = self.dlg[element_property].is_enabled()
             return status
         except Exception as e1:
             print(e1)
@@ -962,6 +1161,7 @@ class PyWindowsGuiLibrary:
                 error.ROBOT_EXIT_ON_FAILURE = True
                 raise error
 
+    @keyword
     def get_element_visible_state(self, element_property):
         """
         Returns ``True`` when element visible in current window.
@@ -972,16 +1172,17 @@ class PyWindowsGuiLibrary:
 
         *Example*:
         | *Keyword*                  | *Attributes*       |
-        | Get Element Visible State  | element property   | #would return true when element is visible. |
+        | Get Element Visible State  | element property   | #would return only true when element is visible. |
 
         """
         try:
-            state = dlg[element_property].is_visible()
+            state = self.dlg[element_property].is_visible()
             return state
         except Exception as h1:
             print(h1)
             pass
 
+    @keyword
     def get_element_enable_state(self, element_property):
         """
         Returns ``True`` when element enabled in current window.
@@ -996,7 +1197,7 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            state = dlg[element_property].is_enabled()
+            state = self.dlg[element_property].is_enabled()
             return state
         except Exception as h1:
             print(h1)
@@ -1169,7 +1370,7 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            dlg.menu_select(menu_path)
+            self.dlg.menu_select(menu_path)
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to select the menu path " + ":::: " + "because " + str(h1)
@@ -1194,7 +1395,7 @@ class PyWindowsGuiLibrary:
             if item.isdigit():
                 item = int(item)
                 log = "WithIndex"
-            combo = dlg[combobox]
+            combo = self.dlg[combobox]
             combo.select(item)
         except Exception as h1:
             time.sleep(1)
@@ -1211,7 +1412,7 @@ class PyWindowsGuiLibrary:
         | Get Selected Combobox Item Index  | ComboBox2     | #would return selected item index from given combobox  |
         """
         try:
-            combo = dlg[combobox]
+            combo = self.dlg[combobox]
             index = combo.selected_index()
             return index
         except Exception as h1:
@@ -1229,7 +1430,7 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            combo = dlg[combobox]
+            combo = self.dlg[combobox]
             combo_list = combo.texts()
             return combo_list
         except Exception as h1:
@@ -1247,7 +1448,7 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            combo = dlg[combobox]
+            combo = self.dlg[combobox]
             selected_item_text = combo.selected_text()
             return selected_item_text
         except Exception as h1:
@@ -1265,7 +1466,7 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            combo = dlg[combobox]
+            combo = self.dlg[combobox]
             combo_items_count = combo.item_count()
             return combo_items_count
         except Exception as h1:
@@ -1281,7 +1482,7 @@ class PyWindowsGuiLibrary:
 
         ``item`` can be either a 0 based index of the item to select or it can be the string that you want to select
 
-        Recommended to use win32 controls. To shift to win32 controls, just use the `Focus Application Window`
+        To shift to win32 controls, just use the `Focus Application Window`
 
         *Example*:
         | *Keyword*         | *Attributes* |            |                                                 |
@@ -1290,11 +1491,11 @@ class PyWindowsGuiLibrary:
         | Select List Item  | ListView     | item index | #would select item in list based on item index  |
         """
         try:
-            log=" by item string"
+            log = " by item string"
             if item.isdigit():
                 item = int(item)
                 log = "by item index"
-            b = dlg[listview]
+            b = self.dlg[listview]
             b.set_focus()
             b.select(item)
             self.capture_app_screenshot('SelectedListItem' + log + str(item))
@@ -1311,9 +1512,8 @@ class PyWindowsGuiLibrary:
 
         ``item`` can be either a 0 based index of the item to select or it can be the string that you want to select
 
-        Recommended to use win32 controls. To shift to win32 controls, just use the `Focus Application Window`
-
-        Recommended to use win32 controls
+        Use `Focus Application Window` keyword anytime to shift the control of execution between backend process
+        win32 and uia.
 
         *Example*:
         | *Keyword*         | *Attributes* |            |                                                  |
@@ -1326,7 +1526,7 @@ class PyWindowsGuiLibrary:
             if item.isdigit():
                 item = int(item)
                 log = "by Item Index"
-            b = dlg[listview]
+            b = self.dlg[listview]
             list_item = b.item(item).text()
             return list_item
         except Exception as h1:
@@ -1338,7 +1538,8 @@ class PyWindowsGuiLibrary:
         """
         Returns the list items count.
 
-        Recommended to use win32 controls. To shift to win32 controls, just use the `Focus Application Window`
+        Use `Focus Application Window` keyword anytime to shift the control of execution between backend process
+        win32 and uia.
 
         *Example*:
         | *Keyword*                  | *Attributes* |                                     |
@@ -1346,7 +1547,7 @@ class PyWindowsGuiLibrary:
         | Get List Items Count       | ListView     | #would return items count from list |
         """
         try:
-            list_items_count = dlg[listview].item_count()
+            list_items_count = self.dlg[listview].item_count()
             return list_items_count
         except Exception as h1:
             self.__screenshot_on_error__()
@@ -1355,9 +1556,10 @@ class PyWindowsGuiLibrary:
 
     def check_list_item_present(self, listview, item):
         """
-        Returns ``item handle`` if given item present in list, else fail.
+        Returns ``item handle`` if given item present in list, else return failure.
 
-        Recommended to use win32 controls. To shift to win32 controls, just use the `Focus Application Window`
+        Use `Focus Application Window` keyword anytime to shift the control of execution between backend process
+        win32 and uia.
 
         ``item`` can be either a 0 based index of the item to select or it can be the string that you want to select
 
@@ -1372,7 +1574,7 @@ class PyWindowsGuiLibrary:
             if item.isdigit():
                 item = int(item)
                 log = "By Item Index"
-            list_items = dlg[listview]
+            list_items = self.dlg[listview]
             item_handle = list_items.check(item)
             return item_handle
         except Exception as h1:
