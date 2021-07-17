@@ -6,7 +6,7 @@ with open('README.md') as f:
 
 setup(
     name="robotframework-PyWindowsGuiLibrary",
-    version="1.1",
+    version="1.5",
     author="Himavanthudu Bodapati",
     author_email="himavanthudu.b@gmail.com",
     description="A Robot Framework Library for automating the WINDOWS BASED GUI applications",
