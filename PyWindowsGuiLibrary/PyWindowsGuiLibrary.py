@@ -201,7 +201,7 @@ class PyWindowsGuiLibrary:
             ----Clear Edit Field----Edit1
 
     """
-    __version__ = '1.4'
+    __version__ = '1.0'
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'
 
     def __init__(self, screenshots_on_error=True, backend="uia"):
