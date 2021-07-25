@@ -51,5 +51,9 @@ To find exact element property/control, analyse the hierarchy and find from prin
 1. Tree Struce Handling support
 2. Upgrading keyword coverage in various areas (specifically enhancing support for win32 and uia)
 
+## Note
+File defects here with log traces if anything found.
+Or write mail to himavanthudu.b@gmail.com
+
 ## Keyword documentation
 For the keyword documentation [go here](https://himaane.github.io/robotframework-PyWindowsGuiLibrary/PyWindowsGuiLibrary.html).
