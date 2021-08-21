@@ -6,13 +6,13 @@ with open('README.md') as f:
 
 setup(
     name="robotframework-PyWindowsGuiLibrary",
-    version="2.0",
+    version="2.1",
     author="Himavanthudu Bodapati",
     author_email="himavanthudu.b@gmail.com",
     description="A Robot Framework Library for automating the WINDOWS BASED GUI applications",
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url="https://github.com/HimaAne/robotframework-PyWindowsGuiLibrary/archive/refs/tags/2.0.tar.gz",
+    url="https://github.com/HimaAne/robotframework-PyWindowsGuiLibrary/archive/refs/tags/2.1.tar.gz",
     packages=find_packages(),
     classifiers=(
         "Programming Language :: Python :: 3.6",
