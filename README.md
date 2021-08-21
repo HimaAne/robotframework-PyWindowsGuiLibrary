@@ -48,7 +48,7 @@ To find exact element property/control, analyse the hierarchy and find from prin
 
 ## Upcomming Development Items
 
-1. System Tray and Taskbar Handling
+1̶. S̶y̶s̶t̶e̶m̶ ̶T̶r̶a̶y̶ ̶a̶n̶d̶ ̶T̶a̶s̶k̶b̶a̶r̶ ̶H̶a̶n̶d̶l̶i̶n̶g̶.
 2. Tree Struce Handling support
 3. Upgrading keyword coverage in various areas (specifically enhancing support for win32 and uia)
 
