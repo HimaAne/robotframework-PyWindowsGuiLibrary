@@ -142,7 +142,7 @@ class PyWindowsGuiLibrary:
 
         == *** Settings *** ==
 
-        Library----PyWindowsGuiLibrary----screenshots_on_error=False
+        Library----PyWindowsGuiLibrary----screenshots_on_error=False----backend=UIA
 
         == *** Variables *** ==
 
@@ -201,22 +201,25 @@ class PyWindowsGuiLibrary:
             ----Clear Edit Field----Edit1
 
     """
-    __version__ = '2.0'
+    __version__ = '2.1'
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'
 
     def __init__(self, screenshots_on_error=True, backend="uia"):
         """
         Sets default variables for the library.
 
-        | *Arguments*                | *Documentation*                 |
-        | screenshots_on_error=True  | Enables screenshots on Failures |
+        | *Arguments*                | *Documentation*                  |
+        | screenshots_on_error=True  | Enables screenshots on Failures  |
         | screenshots_on_error=False | Disables screenshots on Failures |
+        | backend                    |                UIA               |
+        | backend                    |                win32             |
 
         """
         self.take_screenshots = screenshots_on_error
         self.backend = backend.lower()
         self.dlg = None
         self.APPInstance = None
+        self.hae = ""
 
     def set_backend_win32(self):
         """
@@ -554,11 +557,12 @@ class PyWindowsGuiLibrary:
         """
         logger.info("Double clicking element property " + "`" + element_property + "`.")
         try:
-            if self.backend == "win32":
-                self.dlg[element_property].double_click()
-            elif self.backend == "uia":
-                logger.info("This keyword is no longer support for uia controls")
-                raise AssertionError
+            if self.dlg and self.backend is not None:
+                if self.backend == "win32":
+                    self.dlg[element_property].double_click()
+                elif self.backend == "uia":
+                    logger.info("This keyword is no longer support for uia controls")
+                    raise AssertionError
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to click object " + element_property + " in Application " + ":::: " + "because " + str(h1)
@@ -577,12 +581,13 @@ class PyWindowsGuiLibrary:
         """
         logger.info("Right clicking element property " + "'" + element_property + "'.")
         try:
-            if self.backend == "win32":
-                self.dlg[element_property].right_click()
-            elif self.backend == "uia":
-                log = "This keyword is no longer support for uia controls, Use other Click related keywords"
-                logger.info(log)
-                raise AssertionError
+            if self.dlg and self.backend is not None:
+                if self.backend == "win32":
+                    self.dlg[element_property].right_click()
+                elif self.backend == "uia":
+                    log = "This keyword is no longer support for uia controls, Use other Click related keywords"
+                    logger.info(log)
+                    raise AssertionError
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to click object " + element_property + " in Application " + ":::: " + "because " + \
@@ -608,12 +613,13 @@ class PyWindowsGuiLibrary:
         """
         logger.info("Action Right Clicking element Property " + "'" + element_property + "'.")
         try:
-            if self.backend == "win32":
-                self.dlg[element_property].right_click_input()
-            elif self.backend == "uia":
-                log = "This keyword is no longer support for uia controls, Use other Click related keywords"
-                logger.info(log)
-                raise AssertionError
+            if self.dlg and self.backend is not None:
+                if self.backend == "win32":
+                    self.dlg[element_property].right_click_input()
+                elif self.backend == "uia":
+                    log = "This keyword is no longer support for uia controls, Use other Click related keywords"
+                    logger.info(log)
+                    raise AssertionError
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to click object " + element_property + " in Application " + ":::: " + "because " + log + \
@@ -775,7 +781,7 @@ class PyWindowsGuiLibrary:
         """
         Release the mouse button at specified X and Y coordinates.
 
-        If already mose pressed on coordinates, this helps us to release the mose press.
+        If already mose pressed on coordinates, this helps us to release the mouse press.
 
         *Example*:
         | *Keyword*         | *Attributes*  |       |      |                                              |
@@ -835,8 +841,9 @@ class PyWindowsGuiLibrary:
         """
         logger.info("Typing text " + text + " into text field identified by " + element_property + ".")
         try:
-            self.dlg[element_property].type_keys(text, pause=0.05, with_spaces=True, with_tabs=True,
-                                                 with_newlines=True, turn_off_numlock=True)
+            if self.dlg and self.backend is not None:
+                self.dlg[element_property].type_keys(text, pause=0.05, with_spaces=True, with_tabs=True,
+                                                     with_newlines=True, turn_off_numlock=True)
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to types the given" + text + "into the text field identified by " + element_property + "." \
@@ -856,15 +863,20 @@ class PyWindowsGuiLibrary:
         """
         logger.info("sending keystrokes to the control in an inactive window.")
         try:
-            if self.backend == 'win32':
-                self.dlg.send_keystrokes(text)
+            if self.dlg and self.backend is not None:
+                if self.backend == 'win32':
+                    self.dlg.send_keystrokes(text)
+                elif self.backend == "uia":
+                    log = "This keyword is no longer support for uia controls, Use other send/type related keywords"
+                    logger.info(log)
+                    raise AssertionError
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to silently send keystrokes to the control in an inactive window. " + " :::: " \
-                   + "because " + str(h1)
+                   + "because " + log + str(h1)
             raise Exception(mess)
 
-    def press_keys(self, keys):
+    def press_keys(self, keys, press_count=1, interval=0):
         """
         This keyword Enters/performs the Keys actions On the ``window``.
 
@@ -873,18 +885,50 @@ class PyWindowsGuiLibrary:
         The following are the valid strings to pass to the press() function:
         https://pyautogui.readthedocs.io/en/latest/keyboard.html?highlight=press#keyboard-keys
 
+        press count helps to press the same key multiple times
+
         *Example*:
-        | *Keyword*   | *Attributes*      |
-        | Press Keys  | {TAB}{SPACE}{TAB} |
-        | Press Keys  | ABCD              |
+        | *Keyword*   |  *Attributes*      |     |    |    |
+        | Press Keys  |  tab               |  2  | #would click tab 2 times |    |
+        | Press Keys  |  A          |  5  | 1 | #would click 'A' 5 times and for each time with 1 second time interval |
+        | Press Keys  |  enter             | #would press the enter button |   |   |
+
         """
         logger.info("'Pressing the given " + keys + " key(s) on Active Window"+"'.")
         try:
-            self.dlg.set_focus()
-            pyautogui.press(keys)
+            time.sleep(0.25)
+            pyautogui.press(keys, presses=press_count, interval=interval)
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to press the given" + keys + "on Window." + ":::: " + "because " + str(h1)
+            raise Exception(mess)
+
+    def text_writer(self, string, interval=0):
+        """
+        The primary keyboard function is that types given string in to where cursor present at edit fields.
+
+        This function will type the characters in the string that is passed at cursor point. To add a delay interval
+        in between pressing each character key, pass an int or float for the interval keyword argument.
+
+        types given string directly on screen into edit fields/ window by pyautogui where cursor focused.
+
+        The following are the valid strings to pass to the write() function:
+        https://pyautogui.readthedocs.io/en/latest/keyboard.html?highlight=write#the-write-function
+
+        *Example*:
+        | *Keyword*    |  *Attributes*  |      |    |
+        | Text Writer  |  HimaAne  | #would type the given string with out any delay between character |   |
+        | Text Writer  |  ABCD | 0.25 | #would type the given string with 0.25delay between each character |
+
+        """
+        logger.info("'Pressing the given " + "`" + string + "`" + " string on Active Window" + "'.")
+        try:
+            time.sleep(0.25)
+            pyautogui.write(string, interval=interval)
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = "Unable to write/type the given " + "`" + string + "`" + " on Window where cursor placed." +\
+                   ":::: " + "because " + str(h1)
             raise Exception(mess)
 
     def clear_edit_field(self, element_property):
@@ -900,7 +944,8 @@ class PyWindowsGuiLibrary:
         """
         logger.info("clearing the given edit fields " + element_property + " on Active Window.")
         try:
-            self.dlg[element_property].set_text(u'')
+            if self.dlg and self.backend is not None:
+                self.dlg[element_property].set_text(u'')
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to clear the given edit field `" + element_property + "` on Active Window." + " :::: "\
@@ -909,6 +954,7 @@ class PyWindowsGuiLibrary:
 
     def __checkbox_status__(self, element_property):
         try:
+            cb_status = ""
             if self.backend == "uia" and self.dlg is not None:
                 cb_status = self.dlg[element_property].get_toggle_state()
             elif self.backend == "win32" and self.dlg is not None:
@@ -930,17 +976,19 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            cb_status = self.__checkbox_status__(element_property)
-            logger.info("Enabling the checkbox")
-            logger.info("Checkbox is in unchecked state")
-            logger.info("checking (✔) unchecked checkbox")
-            if cb_status == str(0) or cb_status == str(False):
-                self.dlg[element_property].click_input()
-                logger.info("Changed checkbox state from unchecked to checked(✔) successfully. ")
-            elif cb_status == str(True) or cb_status == str(1):
-                logger.info("Checkbox is already in enabled/checked state (✔)")
-            else:
-                logger.info("Not able to retrieve the checkbox status, un supported & checkbox status is " + cb_status)
+            if self.dlg and self.backend is not None:
+                cb_status = self.__checkbox_status__(element_property)
+                logger.info("Enabling the checkbox")
+                logger.info("Checkbox is in unchecked state")
+                logger.info("checking (✔) unchecked checkbox")
+                if cb_status == str(0) or cb_status == str(False):
+                    self.dlg[element_property].click_input()
+                    logger.info("Changed checkbox state from unchecked to checked(✔) successfully. ")
+                elif cb_status == str(True) or cb_status == str(1):
+                    logger.info("Checkbox is already in enabled/checked state (✔)")
+                else:
+                    logger.info("Not able to retrieve the checkbox status, un supported & checkbox status is " +
+                                cb_status)
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Failed to check (✔) the check box " + ":::: " + "because " + str(h1)
@@ -958,17 +1006,19 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            cb_status = self.__checkbox_status__(element_property)
-            logger.info("Disabling the checkbox")
-            logger.info("Checkbox is in checked (✔) state")
-            logger.info("Unchecking (✔-->✖) checked checkbox")
-            if cb_status == str(1) or cb_status == str(True):
-                self.dlg[element_property].click_input()
-                logger.info("Changed checkbox state from checked(✔) to unchecked successfully. ")
-            elif cb_status == str(False) or cb_status == str(0):
-                logger.info("Checkbox is already in disabled/Unchecked state (✖)")
-            else:
-                logger.info("Not able to retrieve the checkbox status, un supported & checkbox status is " + cb_status)
+            if self.dlg and self.backend is not None:
+                cb_status = self.__checkbox_status__(element_property)
+                logger.info("Disabling the checkbox")
+                logger.info("Checkbox is in checked (✔) state")
+                logger.info("Unchecking (✔-->✖) checked checkbox")
+                if cb_status == str(1) or cb_status == str(True):
+                    self.dlg[element_property].click_input()
+                    logger.info("Changed checkbox state from checked(✔) to unchecked successfully. ")
+                elif cb_status == str(False) or cb_status == str(0):
+                    logger.info("Checkbox is already in disabled/Unchecked state (✖)")
+                else:
+                    logger.info("Not able to retrieve the checkbox status, un supported & checkbox status is "
+                                + cb_status)
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Failed to uncheck the check box " + ":::: " + "because " + str(h1)
@@ -1068,10 +1118,10 @@ class PyWindowsGuiLibrary:
         *Example*:
         | *Keyword* | *element_property* | *Window property* | *pattern* | *index* | *backend process* |
         | Get Line   | element property  | class_name:PQRS   | (.*)(L989, T878, R767, B656)(.*) | 0 | win32 |
+
         """
         try:
             global result
-            #element_property = element_property=None
             app = pywinauto.application.Application(backend=backend)
             self._window_handle_(window_property, index)
             app.connect(handle=w_handle)
@@ -1132,6 +1182,7 @@ class PyWindowsGuiLibrary:
         | *Keyword*                 | *Attributes*      |  *backend process*  | *Index* |
         | Close Application Window  | window property   | #By default window closes where index Zero and by backend process win32 |
         | Close Application Window  | window property   | uia | 1 |
+
         """
         try:
             pwa_app = pywinauto.application.Application(backend=backend_process)
@@ -1170,14 +1221,17 @@ class PyWindowsGuiLibrary:
 
         See the `Element property` section for details about the locator.
 
+        Make sure your application response while using this keyword.ss
+
         *Example*:
-        | *Keyword*                  | *Attributes*       |
+        | *Keyword*                  | *Attributes*       |                                                  |
         | Get Element Visible State  | element property   | #would return only true when element is visible. |
 
         """
         try:
-            state = self.dlg[element_property].is_visible()
-            return state
+            if self.dlg and self.backend is not None:
+                state = self.dlg[element_property].is_visible()
+                return state
         except Exception as h1:
             print(h1)
             pass
@@ -1191,14 +1245,17 @@ class PyWindowsGuiLibrary:
 
         See the `Element property` section for details about the locator.
 
+        Make sure your application response while using this keyword.
+
         *Example*:
-        | *Keyword*                  | *Attributes*       |
+        | *Keyword*                  | *Attributes*       |                                             |
         | Get Element enable State   | element property   | #would return true when element is enabled. |
 
         """
         try:
-            state = self.dlg[element_property].is_enabled()
-            return state
+            if self.dlg and self.backend is not None:
+                state = self.dlg[element_property].is_enabled()
+                return state
         except Exception as h1:
             print(h1)
             pass
@@ -1224,6 +1281,7 @@ class PyWindowsGuiLibrary:
         | *Keyword* | *Element property* | *window property* | *app index* | *timeout* | *Retry Interval* |
         | Wait Until Window Element Is Visible | Edit  |  # This waits for Edit object to present in 60 seconds with retry interval 1sec in notepad application, |
         | Wait Until Window Element Is Visible | element property  |  class_name:xyz | 1 | 30 | 2 |
+
         """
         global checkup_state
         checkup_state = 'visible'
@@ -1251,6 +1309,7 @@ class PyWindowsGuiLibrary:
         | *Keyword* | *Element property* | *window property* | *app index* | *timeout* | *Retry Interval* |
         | Wait Until Window Element Is Enabled | Edit  |  # This waits for Edit object to present in 60 seconds with retry interval 1sec in notepad application, |
         | Wait Until Window Element Is Enabled | element property  |  class_name:xyz | 1 | 30 | 2 |
+
         """
         global checkup_state
         checkup_state = 'enable'
@@ -1306,6 +1365,7 @@ class PyWindowsGuiLibrary:
         | Wait Until Window Present | title:Untitled - Notepad | #This waits for window to present in 60 seconds with retry interval 1sec in zero index notepad application. |
         | Wait Until Window Present | class_name: Save As | #By Class Name of window |
         | Wait Until Window Present | class_name: Save | 60 | 1 | 0 |
+
         """
         try:
             global culmination_time
@@ -1349,13 +1409,13 @@ class PyWindowsGuiLibrary:
             logger.info("Running command '%s'." % command)
             output = p.stdout.read()
             output1 = p.stderr.read()
-            retcode = p.wait()
-            if retcode != 0:
+            ret_code = p.wait()
+            if ret_code != 0:
                 output = "Application is no more in active state."
-                logger.info("Ret code is " + str(retcode) + " and " + output + " Verification Message: " + output1)
+                logger.info("Ret code is " + str(ret_code) + " and " + output + " Verification Message: " + output1)
                 return
             if 'SUCCESS:' in output:
-                logger.info("Ret code is " + str(retcode) + " and Verification Message: " + output)
+                logger.info("Ret code is " + str(ret_code) + " and Verification Message: " + output)
                 self.close_application(command)
         except Exception as h1:
             logger.info(h1)
@@ -1370,7 +1430,8 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            self.dlg.menu_select(menu_path)
+            if self.dlg and self.backend is not None:
+                self.dlg.menu_select(menu_path)
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to select the menu path " + ":::: " + "because " + str(h1)
@@ -1391,12 +1452,13 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            log = ""
-            if item.isdigit():
-                item = int(item)
-                log = "WithIndex"
-            combo = self.dlg[combobox]
-            combo.select(item)
+            if self.dlg and self.backend is not None:
+                log = ""
+                if item.isdigit():
+                    item = int(item)
+                    log = "WithIndex"
+                combo = self.dlg[combobox]
+                combo.select(item)
         except Exception as h1:
             time.sleep(1)
             logger.info(h1)
@@ -1410,11 +1472,13 @@ class PyWindowsGuiLibrary:
         *Example*:
         | *Keyword*                         | *Attributes*  |                                                        |
         | Get Selected Combobox Item Index  | ComboBox2     | #would return selected item index from given combobox  |
+
         """
         try:
-            combo = self.dlg[combobox]
-            index = combo.selected_index()
-            return index
+            if self.dlg and self.backend is not None:
+                combo = self.dlg[combobox]
+                index = combo.selected_index()
+                return index
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to select the combobox item " + ":::: " + "because " + str(h1)
@@ -1430,9 +1494,10 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            combo = self.dlg[combobox]
-            combo_list = combo.texts()
-            return combo_list
+            if self.dlg and self.backend is not None:
+                combo = self.dlg[combobox]
+                combo_list = combo.texts()
+                return combo_list
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to select the combobox item " + ":::: " + "because " + str(h1)
@@ -1448,9 +1513,10 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            combo = self.dlg[combobox]
-            selected_item_text = combo.selected_text()
-            return selected_item_text
+            if self.dlg and self.backend is not None:
+                combo = self.dlg[combobox]
+                selected_item_text = combo.selected_text()
+                return selected_item_text
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to select the combobox item " + ":::: " + "because " + str(h1)
@@ -1466,9 +1532,10 @@ class PyWindowsGuiLibrary:
 
         """
         try:
-            combo = self.dlg[combobox]
-            combo_items_count = combo.item_count()
-            return combo_items_count
+            if self.dlg and self.backend is not None:
+                combo = self.dlg[combobox]
+                combo_items_count = combo.item_count()
+                return combo_items_count
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to select the combobox item " + ":::: " + "because " + str(h1)
@@ -1489,16 +1556,18 @@ class PyWindowsGuiLibrary:
         | Focus Application Window   | title:Print |   win32 |                                            |
         | Select List Item  | ListView     | item text  | #would select item in list based on item string |
         | Select List Item  | ListView     | item index | #would select item in list based on item index  |
+
         """
         try:
-            log = " by item string"
-            if item.isdigit():
-                item = int(item)
-                log = "by item index"
-            b = self.dlg[listview]
-            b.set_focus()
-            b.select(item)
-            self.capture_app_screenshot('SelectedListItem' + log + str(item))
+            if self.dlg and self.backend is not None:
+                log = " by item string"
+                if item.isdigit():
+                    item = int(item)
+                    log = "by item index"
+                b = self.dlg[listview]
+                b.set_focus()
+                b.select(item)
+                self.capture_app_screenshot('SelectedListItem' + log + str(item))
         except Exception as h1:
             self.__screenshot_on_error__()
             mess = "Unable to select the given Item from the list view " + ":::: " + "because " + str(h1)
@@ -1520,18 +1589,20 @@ class PyWindowsGuiLibrary:
         | Focus Application Window   | title:Print |  win32 |                                              |
         | Get List Item Text | ListView     | item text  | #would select item in list based on item string |
         | Get List Item Text | ListView     | item index | #would select item in list based on index       |
+
         """
         try:
-            log = "by item string"
-            if item.isdigit():
-                item = int(item)
-                log = "by Item Index"
-            b = self.dlg[listview]
-            list_item = b.item(item).text()
-            return list_item
+            if self.dlg and self.backend is not None:
+                log = "by item string"
+                if item.isdigit():
+                    item = int(item)
+                    log = "by Item Index"
+                b = self.dlg[listview]
+                list_item = b.item(item).text()
+                return list_item
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = "unable to get the list item text from list box " + log + ":::: " + "because " + str(h1)
+            mess = "Unable to get the list item text from list box " + log + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
     def get_list_items_count(self, listview):
@@ -1545,13 +1616,15 @@ class PyWindowsGuiLibrary:
         | *Keyword*                  | *Attributes* |                                     |
         | Focus Application Window   | title:Print  |  win32                              |
         | Get List Items Count       | ListView     | #would return items count from list |
+
         """
         try:
-            list_items_count = self.dlg[listview].item_count()
-            return list_items_count
+            if self.dlg and self.backend is not None:
+                list_items_count = self.dlg[listview].item_count()
+                return list_items_count
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = "unable to get the list items count from list box " + ":::: " + "because " + str(h1)
+            mess = "Unable to get the list items count from list box " + ":::: " + "because " + str(h1)
             raise Exception(mess)
 
     def check_list_item_present(self, listview, item):
@@ -1568,16 +1641,278 @@ class PyWindowsGuiLibrary:
         | Focus Application Window   | title:Print |  win32 |                                                  |
         | Check List Item Present | ListView     | item text  | #would check item in list based on item string |
         | Check List Item Present | ListView     | item index | #would check item in list based on index       |
+
         """
         try:
-            log = "By item string"
-            if item.isdigit():
-                item = int(item)
-                log = "By Item Index"
-            list_items = self.dlg[listview]
-            item_handle = list_items.check(item)
-            return item_handle
+            if self.dlg and self.backend is not None:
+                log = "By item string"
+                if item.isdigit():
+                    item = int(item)
+                    log = "By Item Index"
+                list_items = self.dlg[listview]
+                item_handle = list_items.check(item)
+                return item_handle
         except Exception as h1:
             self.__screenshot_on_error__()
-            mess = "unable to check the list item presence from list box " + log + ":::: " + "because " + str(h1)
+            mess = "Unable to check the list item presence from list box " + log + ":::: " + "because " + str(h1)
+            raise Exception(mess)
+
+    def get_systemTray_icon_Text(self, app_child_window_property, timeout=1,
+                                 taskbar_win_property='class_name:Shell_TrayWnd',
+                                 show_hidden_icons_property="title:Notification Chevron",
+                                 sys_tray_property="class_name:NotifyIconOverflowWindow", backend='uia'):
+        """
+        Returns the text of systemTray Icon.
+
+        `timeout`, `taskbar_win_property` , `show_hidden_icons_property` , `sys_tray_property` , `backend`
+        is optional arguments. If property changes use appropriate properties.
+
+        Increase and use timeout argument for sync purpose to perform the get text of application action.
+
+        This keyword internally handles: connecting to taskbar, clicking on show hidden icon (^) from task bar,
+        takes application control from tray icons to perform the actions.
+
+        *Example*:
+        | *Keyword*         | *Attributes* |            |                                                            |
+        | Get SystemTray Icon Text | title:notepad |  | #would return app text with by default 1 second time wait    |
+        | Get SystemTray Icon Text | class_name:note | 2 | #would return app text from systemTray with 2seconds wait |
+
+        """
+        logger.info("Getting text of " + "`" + app_child_window_property + "`" + " application from system tray")
+        try:
+            self.__openSysTray_ConnectTray_TakeAppChildWindowControl__(app_child_window_property, timeout,
+                                                                       taskbar_win_property, show_hidden_icons_property,
+                                                                       sys_tray_property, backend)
+            iconText = self.hae.window_text()
+            logger.info(iconText)
+            return iconText
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = "Unable to get the text of application Icon which is present in the systemTray " + ":::: " + \
+                   "because " + str(h1)
+            raise Exception(mess)
+
+    def click_on_show_hidden_icons(self, taskbar_win_property, show_hidden_icons_property, backend):
+        """
+        clicks on show hidden icons (^) from task bar.
+
+        *Example*:
+        | *Keyword*            | *Attributes-->*  *taskbar_win_property*  |  *show_hidden_icons_property* | *backend* |
+        | Click On Show Hidden Icons | class_name:Shell_TrayWnd  | title:Notification Chevron    | uia |
+
+        """
+        logger.info("Clicking at show hidden icons (^) option from task bar")
+        try:
+            self.connect_taskbar(taskbar_win_property, backend)
+            self.__apps_child_window_handle__(show_hidden_icons_property)
+            self.hae.click()
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = "Unable to open show hidden icons (From Tool Bar-->^) " + ":::: " + "because " + str(h1)
+            raise Exception(mess)
+
+    def __connect_to_tray_handle__(self, timeout, sys_tray_property, backend):
+        self.connect_app(sys_tray_property, backend)
+        self.hae = self.dlg
+        self.hae.wait('visible', timeout=timeout, retry_interval=.25)
+
+    def connect_app(self, window_property, backend):
+        """
+        connects to application window, it will only perform connect function based on title/class_name of the
+        applications.
+
+        it will made connection to application and returns reference in self.dlg variable.
+
+        *Example*:
+        | *Keyword*            | *Attributes-->* *window_property* | *backend* |
+        | Connect App          | class_name:Shell_TrayWnd          | uia       |
+        | Connect App          | title:Shell_TrayWnd               | win32     |
+
+        """
+        if 'title:' in window_property:
+            win_prop = window_property.replace('title:', '')
+            app = pywinauto.application.Application(backend=backend).connect(title=win_prop)
+            self.dlg = app.window(title=win_prop)
+        elif 'class_name:' in window_property:
+            win_prop = window_property.replace('class_name:', '')
+            app = pywinauto.application.Application(backend=backend).connect(class_name=win_prop)
+            self.dlg = app.window(class_name=win_prop)
+    
+    def connect_taskbar(self, taskbar_win_property, backend):
+        """
+        connects to window taskbar, it will made connection to taskbar and returns reference in self.hae variable.
+
+        Use Shell_TrayWnd class name to connect taskbar
+
+        *Example*:
+        |  *Keyword*                | *Attributes-->* *window_property* | *backend* |
+        |  Connect Taskbar          | class_name:Shell_TrayWnd          | uia       |
+
+        """
+        logger.info("Connecting to task bar")
+        self.connect_app(taskbar_win_property, backend)
+        self.hae = self.dlg
+
+    def click_on_systemTray_icon(self, app_child_window_property, timeout=1,
+                                 taskbar_win_property='class_name:Shell_TrayWnd',
+                                 show_hidden_icons_property="title:Notification Chevron",
+                                 sys_tray_property='class_name:NotifyIconOverflowWindow', backend='uia'):
+        """
+        Performs Click on application Icon presents in SystemTray.
+
+        `timeout`, `taskbar_win_property` , `show_hidden_icons_property` , `sys_tray_property` , `backend`
+        is optional arguments. If property changes use appropriate properties.
+
+        Increase and use timeout argument for sync purpose to perform the click action.
+
+        This keyword internally handles: connecting to taskbar, clicking on show hidden icon (^) from task bar,
+        takes application control from tray icons to perform the click action on tray apps.
+
+        *Example*:
+        | *Keyword*                | *Attributes* |
+        | Click On SystemTray Icon | title:Microsoft Teams - New activity |
+
+        """
+        logger.info("Clicking on " + "`" + app_child_window_property + "`" + " application from system tray")
+        try:
+            self.__openSysTray_ConnectTray_TakeAppChildWindowControl__(app_child_window_property, timeout,
+                                                                       taskbar_win_property, show_hidden_icons_property,
+                                                                       sys_tray_property, backend)
+            self.hae.click()
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = "Unable to click on application icon which is presents in systemTray " + ":::: " + "because " + \
+                   str(h1)
+            raise Exception(mess)
+
+    def double_click_on_systemTray_icon(self, app_child_window_property, timeout=1,
+                                        taskbar_win_property='class_name:Shell_TrayWnd',
+                                        show_hidden_icons_property="title:Notification Chevron",
+                                        sys_tray_property="class_name:NotifyIconOverflowWindow", backend='uia'):
+        """
+        Performs Double clicks on application Icon presents in SystemTray.
+
+        `timeout`, `taskbar_win_property` , `show_hidden_icons_property` , `sys_tray_property` , `backend`
+        is optional arguments. If property changes use appropriate properties.
+
+        Increase and use timeout argument for sync purpose to perform the click action.
+
+        This keyword internally handles: connecting to taskbar, clicking on show hidden icon (^) from task bar,
+        takes application control from tray icons to perform the double click action on tray apps.
+
+        *Example*:
+        | *Keyword*                       | *Attributes*                         |   |
+        | Double Click On SystemTray Icon | title:Microsoft Teams - New activity |   |
+        | Double Click On SystemTray Icon | title:Microsoft Teams - New activity | 2 |
+
+        """
+        logger.info("Double clicking on " + "`" + app_child_window_property + "`" + " application from system tray")
+        try:
+            self.__openSysTray_ConnectTray_TakeAppChildWindowControl__(app_child_window_property, timeout,
+                                                                       taskbar_win_property, show_hidden_icons_property,
+                                                                       sys_tray_property, backend)
+            self.hae.double_click_input()
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = "Unable to double click on application icon which is presents in systemTray " + ":::: " + \
+                   "because " + str(h1)
+            raise Exception(mess)
+
+    def __apps_child_window_handle__(self, window_property):
+        if 'title:' in window_property:
+            win_prop = window_property.replace('title:', '')
+            self.hae = self.hae.child_window(title=win_prop).wrapper_object()
+        elif 'class_name:' in window_property:
+            win_prop = window_property.replace('class_name:', '')
+            self.hae = self.hae.child_window(class_name=win_prop).wrapper_object()
+
+    def right_click_on_systemTray_icon(self, app_child_window_property, timeout=1,
+                                       taskbar_win_property='class_name:Shell_TrayWnd',
+                                       show_hidden_icons_property="title:Notification Chevron",
+                                       sys_tray_property="class_name:NotifyIconOverflowWindow", backend='uia'):
+        """
+        Performs Right click on application Icon presents in SystemTray.
+
+        `timeout`, `taskbar_win_property` , `show_hidden_icons_property` , `sys_tray_property` , `backend`
+        is optional arguments. If property changes use appropriate properties.
+
+        Increase and use timeout argument for sync purpose to perform the click action.
+
+        This keyword internally handles: connecting to taskbar, clicking on show hidden icon (^) from task bar,
+        takes application control from tray icons to perform the right click action on tray apps.
+
+        *Example*:
+        | *Keyword*                      | *Attributes* |
+        | Right Click On SystemTray Icon | title:Microsoft Teams - New activity |
+
+        """
+        logger.info("right clicking on " + "`" + app_child_window_property + "`" + " application from system tray")
+        try:
+            self.__openSysTray_ConnectTray_TakeAppChildWindowControl__(app_child_window_property, timeout,
+                                                                       taskbar_win_property, show_hidden_icons_property,
+                                                                       sys_tray_property, backend)
+            self.hae.click_input(button="right")
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = "Unable to right click on application icon which is present in systemTray Icon " + ":::: " + \
+                   "because " + str(h1)
+            raise Exception(mess)
+
+    def __openSysTray_ConnectTray_TakeAppChildWindowControl__(self, app_child_window_property, timeout,
+                                                              taskbar_win_property, show_hidden_icons_property,
+                                                              sys_tray_property, backend):
+        self.click_on_show_hidden_icons(taskbar_win_property, show_hidden_icons_property, backend)
+        time.sleep(timeout)
+        logger.info("Connecting to system tray handle")
+        self.__connect_to_tray_handle__(timeout, sys_tray_property, backend)
+        logger.info("Taking control of app child window present in system tray to perform actions")
+        self.__apps_child_window_handle__(app_child_window_property)
+
+    def click_on_window_start(self, windows_icon_property='class_name:Start',
+                              taskbar_win_property='class_name:Shell_TrayWnd', backend='uia'):
+        """
+        Clicks at windows Icon at task bar.
+
+        `windows_icon_property` , `taskbar_win_property` and `backend` are optional arguments. If property changes use
+        appropriate properties.
+
+        Clicking based on windows class property by default.
+
+        *Example*:
+        | *Keyword*             | *Attributes*                    |
+        | Click On Window Start | #would clicks on windows button |
+
+        """
+        try:
+            self.connect_taskbar(taskbar_win_property, backend)
+            self.__apps_child_window_handle__(windows_icon_property)
+            logger.info("Clicking on Windows Icon at taskbar")
+            self.hae.click()
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = "Unable to clicks on windows start button from task bar " + ":::: " + "because " + str(h1)
+            raise Exception(mess)
+
+    def click_at_windows_type_here_to_search_option(self, button='Button1',
+                                                    taskbar_win_property='class_name:Shell_TrayWnd', backend='uia'):
+        """
+        Clicks at window's "type here to search" in task bar.
+
+        `button` , `taskbar_win_property` and `backend` are optional arguments. If property changes use
+        appropriate properties.
+
+        *Example*:
+        | *Keyword*                                   | *Attributes*   |                       |
+        | Click At Windows Type here To Search Option | #would clicks on windows Search option |          |
+        | Click At Windows Type here To Search Option |  Button1 | #would clicks on windows Search option |
+
+        """
+        try:
+            self.connect_taskbar(taskbar_win_property, backend)
+            logger.info("Clicking on ``Type here to search`` in task bar.")
+            self.hae[button].click()
+        except Exception as h1:
+            self.__screenshot_on_error__()
+            mess = "Unable to clicks on windows type here search option button from task bar " + ":::: " + \
+                   "because " + str(h1)
             raise Exception(mess)
